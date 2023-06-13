@@ -17,13 +17,13 @@ export class ContactRepository {
         return this.contactModel.find(contactFilterQuery)
     }
 
-    // async createContact(contact: CreateContactDto): Promise<Contact> {
-    //     const newContact = new this.contactModel(contact);
-    //     // return newContact.save()
-    // }
+    async createContact(contact: Object): Promise<Contact>{
+        const newOrders = new this.contactModel(contact);
+        return newOrders.save()
+    }
 
-    async findOneAndUpdateComment(contactFilterQuery: FilterQuery<Contact>, actions: Partial<any>): Promise<Contact> {
-        return this.contactModel.findOneAndUpdate(contactFilterQuery, actions, { new: true });
+    async findOneAndUpdate(contactFilterQuery: FilterQuery<Contact>, contact: Partial<Contact>): Promise<Contact> {
+        return this.contactModel.findOneAndUpdate(contactFilterQuery, contact, { new: true, upsert: true });
     }
 
     async aggregate(aggsQuery: any[]): Promise<any[]> {

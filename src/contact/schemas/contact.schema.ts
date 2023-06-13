@@ -1,6 +1,6 @@
 import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
-import { Document } from 'mongodb';
-import { IsOptional, IsString } from 'class-validator';
+import { Document } from 'mongoose';
+import { IsOptional } from 'class-validator';
 
 export type ContactDocument = Contact & Document;
 
@@ -13,7 +13,7 @@ enum precedence {
 export class Contact {
 
     @Prop()
-    id: Number;
+    id:number
 
     @Prop()
     @IsOptional()
@@ -25,7 +25,7 @@ export class Contact {
 
     @Prop()
     @IsOptional()
-    linkedId: Number;
+    linkedId: Number|null;
 
     @Prop({type: String, enum: precedence})
     linkPrecedence: precedence;
@@ -36,14 +36,14 @@ export class Contact {
     @Prop({ default: new Date() })
     updatedAt: Date;
 
-    @Prop()
+    @Prop({ default: null})
+    @IsOptional()
     deletedAt: Date;
 }
 
 export const ContactSchema = SchemaFactory.createForClass(Contact);
 
-
 ContactSchema.pre<ContactDocument>('findOneAndUpdate', function (next) {
-    this.update({}, { updatedAt: new Date() });
+    this.updateOne({}, { updatedAt: new Date() });
     next();
   });

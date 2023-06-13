@@ -5,6 +5,9 @@ import { ContactModule } from './contact/contact.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule } from '@nestjs/config';
 
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 @Module({
   imports: [
     ConfigModule.forRoot({ envFilePath: ['.env.development'], isGlobal: true }),
