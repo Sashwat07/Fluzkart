@@ -110,7 +110,7 @@ export class ContactService {
       }
     }
     else {
-      return {res:{contact:"Identity Already Exist"}}
+      return {contact:"Identity Already Exist"}
     }
   }
 
