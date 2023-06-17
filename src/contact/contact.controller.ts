@@ -7,7 +7,10 @@ export class ContactController {
   constructor(private readonly contactService: ContactService) {}
 
   @Post()
-  create(@Body() createContactDto: CreateContactDto) {    
+  create(@Body() createContactDto: CreateContactDto) {  
+    if( createContactDto['email'] === null && createContactDto['phoneNumber'] === null){
+      return {contact:"Fill anyone of the credentials"}
+    }      
     return this.contactService.createOrUpdate(createContactDto);
   }
 

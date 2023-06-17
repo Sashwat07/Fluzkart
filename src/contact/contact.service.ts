@@ -59,8 +59,8 @@ export class ContactService {
       const res = {
         contact: {
           primaryContatctId: createdIdentity['id'],
-          emails: [createdIdentity['email']],
-          phoneNumbers: [createdIdentity['phoneNumber']],
+          emails: [createdIdentity['email']].filter(f => f !== null),
+          phoneNumbers: [createdIdentity['phoneNumber']].filter(f => f !== null),
           secondaryContactIds: []
         }
       }
@@ -85,7 +85,7 @@ export class ContactService {
         return res
       }
       else {
-        console.log("elsehhhh", userExist.map(e => e['email']));
+        // console.log("elsehhhh", userExist.map(e => e['email']));
         
         const contactPayload = {
           ...createContactDto,
@@ -110,7 +110,7 @@ export class ContactService {
       }
     }
     else {
-      return "Identity Already Exist"
+      return {res:{contact:"Identity Already Exist"}}
     }
   }
 
