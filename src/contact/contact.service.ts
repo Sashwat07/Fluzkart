@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { CreateContactDto } from './dto/create-contact.dto';
-import { UpdateContactDto } from './dto/update-contact.dto';
 import { ContactRepository } from './contact.repository';
 
 @Injectable()
@@ -11,14 +10,6 @@ export class ContactService {
   ) { }
 
   async createOrUpdate(createContactDto: CreateContactDto) {
-    // console.log({
-    //   ...createContactDto, 
-    //   linkPrecedence: "primary",
-    //   linkedId: null,
-    //   createdAt: new Date,
-    //   updatedAt: new Date,
-    //   deletedAt: null
-    // });
 
     const aggsQuery = [
       {
@@ -31,7 +22,7 @@ export class ContactService {
       },
       {
         $sort: {
-          createdAt: 1 // Sort by the "createdAt" field in ascending order
+          createdAt: 1
         }
       }
     ]
@@ -47,15 +38,14 @@ export class ContactService {
       },
       {
         $sort: {
-          createdAt: 1 // Sort by the "createdAt" field in ascending order
+          createdAt: 1
         }
       }
     ]
     const userExist1 = await this.contactRepository.aggregate(aggsQuery1);
     const userExist = await this.contactRepository.aggregate(aggsQuery);
-    if (!userExist.length) { 
-      console.log("hello");
-           
+
+    if (!userExist.length) {
       const contactPayload = {
         ...createContactDto,
         id: this.generateUniqueId(),
@@ -67,38 +57,57 @@ export class ContactService {
       }
       const createdIdentity = await this.contactRepository.createContact(contactPayload);
       const res = {
-        contact:{
-          primaryContatctId:createdIdentity['id'],
-          emails:[createdIdentity['email']],
-          phoneNumbers:[createdIdentity['phoneNumber']],
-          secondaryContactIds:[]
+        contact: {
+          primaryContatctId: createdIdentity['id'],
+          emails: [createdIdentity['email']],
+          phoneNumbers: [createdIdentity['phoneNumber']],
+          secondaryContactIds: []
         }
       }
       return res
     }
-    else if (!userExist1.length){
-      console.log("user else",userExist[0]['id'], userExist1.length,!userExist1.length);
-      
-      // return userExist[0]['id'].valueOf()
-      const contactPayload = {
-        ...createContactDto,
-        id: this.generateUniqueId(),
-        linkPrecedence: "secondary",
-        linkedId: userExist[0]['id'],
-        createdAt: new Date,
-        updatedAt: new Date,
-        deletedAt: null
-      }
-      const createdNewIdentity = await this.contactRepository.createContact(contactPayload);
-      const res = {
-        contact:{
-          primaryContatctId:userExist[0]['id'],
-          emails: [...new Set([...userExist.map(e => e['email']), createdNewIdentity['email']])],
-          phoneNumbers: [...new Set([...userExist.map(e => e['phoneNumber']), createdNewIdentity['phoneNumber']])],
-          secondaryContactIds:[...userExist.slice(1).map(e => e['id']), createdNewIdentity['id']]
+    else if (!userExist1.length) {
+      const em = userExist.map(e => e['email']);
+      const ph = userExist.map(e => e['phoneNumber'])      
+      if (em.includes(createContactDto['email']) && ph.includes(createContactDto['phoneNumber'])) {
+        userExist.slice(1).forEach(async (ele: any) => {
+
+          const up = await this.contactRepository.findOneAndUpdate({ _id: ele['_id'] }, { ...ele, linkPrecedence: "secondary" })
+        })
+        const res = {
+          contact: {
+            primaryContatctId: userExist[0]['id'],
+            emails: userExist.map(e => e['email']).filter(f => f !== null),
+            phoneNumbers: userExist.map(e => e['phoneNumber']).filter(f => f !== null),
+            secondaryContactIds: userExist.slice(1).map(e => e['id'])
+          }
         }
+        return res
       }
-      return res
+      else {
+        console.log("elsehhhh", userExist.map(e => e['email']));
+        
+        const contactPayload = {
+          ...createContactDto,
+          id: this.generateUniqueId(),
+          linkPrecedence: "secondary",
+          linkedId: userExist[0]['id'],
+          createdAt: new Date,
+          updatedAt: new Date,
+          deletedAt: null
+        }
+        const createdNewIdentity = await this.contactRepository.createContact(contactPayload);
+        
+        const res = {
+          contact: {
+            primaryContatctId: userExist[0]['id'],
+            emails: [...new Set([...userExist.map(e => e['email']), createdNewIdentity['email']])].filter(f => f !== null),
+            phoneNumbers: [...new Set([...userExist.map(e => e['phoneNumber']), createdNewIdentity['phoneNumber']])].filter(f => f !== null),
+            secondaryContactIds: [...userExist.slice(1).map(e => e['id']), createdNewIdentity['id']]
+          }
+        }
+        return res
+      }
     }
     else {
       return "Identity Already Exist"
@@ -109,21 +118,5 @@ export class ContactService {
     const timestamp = Date.now().toString();
     const randomNum = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
     return timestamp + randomNum;
-  }
-
-  findAll() {
-    return `This action returns all contact`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} contact`;
-  }
-
-  update(id: number, updateContactDto: UpdateContactDto) {
-    return `This action updates a #${id} contact`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} contact`;
   }
 }
