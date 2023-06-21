@@ -1,0 +1,7 @@
+runtime: nodejs18
+build:
+  commands:
+    - npm install
+    - npm run build
+  environment:
+    - APP_ENV: production
