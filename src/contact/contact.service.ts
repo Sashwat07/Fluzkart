@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { ContactRepository } from './contact.repository';
+import { log } from 'console';
 
 @Injectable()
 export class ContactService {
@@ -13,7 +14,6 @@ export class ContactService {
 
     let resultant = [];
     const userExist = await this.usersWithOneCred(createContactDto);
-    const userExist1 = await this.usersWithBothCred(createContactDto);
 
     // no record found with the given credentials
     if (!userExist.length) {
@@ -44,22 +44,21 @@ export class ContactService {
 
     }
     // if user with both credentials doesn't exist
-    else if (!userExist1.length) {
-      let result = [];
+    else {
+
       let userList = []
-      if(userExist[0]['linkPrecedence'] === 'secondary'){
-        const user = await this.contactRepository.findOne({ id: userExist[0]['linkedId']})
+      if (userExist[0]['linkPrecedence'] === 'secondary') {        
+        const user = await this.contactRepository.findOne({ id: userExist[0]['linkedId'] })
         userExist.unshift(user)
-        userList = await this.contactRepository.find({ linkedId: user['id']})
+        userList = await this.contactRepository.find({ linkedId: user['id'] })
       }
-      else if (userExist[0]['linkPrecedence'] === 'primary'){
-        userList = await this.contactRepository.find({linkedId: userExist[0]['id']})
+      else if (userExist[0]['linkPrecedence'] === 'primary') {
+        userList = await this.contactRepository.find({ linkedId: userExist[0]['id'] })
       }
       // remove the duplicate contacts
       resultant = [...userExist, ...userList].filter((obj, index, self) =>
-      index === self.findIndex((o) => o.id === obj.id && o.email === obj.email)
-    );
-      
+        index === self.findIndex((o) => o.id === obj.id && o.email === obj.email)
+      );
 
       const em = resultant.map(e => e['email']);
       const ph = resultant.map(e => e['phoneNumber']);
@@ -67,19 +66,21 @@ export class ContactService {
       if (em.includes(createContactDto['email']) && ph.includes(createContactDto['phoneNumber'])) {
         resultant.slice(1).forEach(async (ele: any) => {
 
-          const up = await this.contactRepository.findOneAndUpdate({ _id: ele['_id'] }, { ...ele, linkPrecedence: "secondary" })
+          const up = await this.contactRepository.findOneAndUpdate({ _id: ele['_id'] }, { ...ele, linkPrecedence: "secondary", linkedId: resultant[0]['id'] })
         })
+
         const res = {
           contact: {
             primaryContatctId: resultant[0]['id'],
-            emails: resultant.map(e => e['email']),
-            phoneNumbers: resultant.map(e => e['phoneNumber']),
-            secondaryContactIds: resultant.slice(1).map(e => e['id'])
+            emails: [...new Set(resultant.map(e => e['email']))],
+            phoneNumbers: [...new Set(resultant.map(e => e['phoneNumber']))],
+            secondaryContactIds: [...new Set(resultant.slice(1).map(e => e['id']))]
           }
         }
         return res
       }
-      else {        
+      else {
+
         const contactPayload = {
           ...createContactDto,
           id: this.generateUniqueId(),
@@ -91,7 +92,7 @@ export class ContactService {
         }
 
         const createdNewIdentity = [createContactDto['email'], createContactDto['phoneNumber']].includes(null) ? { id: null, phoneNumber: null, email: null } : await this.contactRepository.createContact(contactPayload);
-        
+
         const res = {
           contact: {
             primaryContatctId: resultant[0]['id'],
@@ -102,9 +103,6 @@ export class ContactService {
         }
         return res
       }
-    }
-    else {
-      return { contact: "Identity Already Exist" }
     }
   }
 
@@ -127,26 +125,6 @@ export class ContactService {
     ]
 
     return await this.contactRepository.aggregate(aggsQuery)
-  }
-
-  async usersWithBothCred(createContact: CreateContactDto) {
-    const aggsQuery = [
-      {
-        $match: {
-          $and: [
-            { email: createContact['email'] },
-            { phoneNumber: createContact['phoneNumber'] }
-          ]
-        }
-      },
-      {
-        $sort: {
-          createdAt: 1
-        }
-      }
-    ]
-
-    return await this.contactRepository.aggregate(aggsQuery);
   }
 
   generateUniqueId() {
