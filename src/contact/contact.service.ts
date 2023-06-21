@@ -11,40 +11,11 @@ export class ContactService {
 
   async createOrUpdate(createContactDto: CreateContactDto) {
 
-    const aggsQuery = [
-      {
-        $match: {
-          $or: [
-            { email: createContactDto['email'] },
-            { phoneNumber: createContactDto['phoneNumber'] }
-          ]
-        }
-      },
-      {
-        $sort: {
-          createdAt: 1
-        }
-      }
-    ]
+    let resultant = [];
+    const userExist = await this.usersWithOneCred(createContactDto);
+    const userExist1 = await this.usersWithBothCred(createContactDto);
 
-    const aggsQuery1 = [
-      {
-        $match: {
-          $and: [
-            { email: createContactDto['email'] },
-            { phoneNumber: createContactDto['phoneNumber'] }
-          ]
-        }
-      },
-      {
-        $sort: {
-          createdAt: 1
-        }
-      }
-    ]
-    const userExist1 = await this.contactRepository.aggregate(aggsQuery1);
-    const userExist = await this.contactRepository.aggregate(aggsQuery);
-
+    // no record found with the given credentials
     if (!userExist.length) {
       const contactPayload = {
         ...createContactDto,
@@ -55,38 +26,60 @@ export class ContactService {
         updatedAt: new Date,
         deletedAt: null
       }
-      const createdIdentity = await this.contactRepository.createContact(contactPayload);
-      const res = {
-        contact: {
-          primaryContatctId: createdIdentity['id'],
-          emails: [createdIdentity['email']].filter(f => f !== null),
-          phoneNumbers: [createdIdentity['phoneNumber']].filter(f => f !== null),
-          secondaryContactIds: []
-        }
+      if ([createContactDto['email'], createContactDto['phoneNumber']].includes(null)) {
+        return { contact: "Fill the credentials properly. No user exist with given credentials" }
       }
-      return res
+      else {
+        const createdIdentity = await this.contactRepository.createContact(contactPayload);
+        const res = {
+          contact: {
+            primaryContatctId: createdIdentity['id'],
+            emails: [createdIdentity['email']],
+            phoneNumbers: [createdIdentity['phoneNumber']],
+            secondaryContactIds: []
+          }
+        }
+        return res
+      }
+
     }
+    // if user with both credentials doesn't exist
     else if (!userExist1.length) {
-      const em = userExist.map(e => e['email']);
-      const ph = userExist.map(e => e['phoneNumber'])      
+      let result = [];
+      let userList = []
+      if(userExist[0]['linkPrecedence'] === 'secondary'){
+        const user = await this.contactRepository.findOne({ id: userExist[0]['linkedId']})
+        userExist.unshift(user)
+        userList = await this.contactRepository.find({ linkedId: user['id']})
+      }
+      else if (userExist[0]['linkPrecedence'] === 'primary'){
+        userList = await this.contactRepository.find({linkedId: userExist[0]['id']})
+      }
+      // remove the duplicate contacts
+      resultant = [...userExist, ...userList].filter((obj, index, self) =>
+      index === self.findIndex((o) => o.id === obj.id && o.email === obj.email)
+    );
+      
+
+      const em = resultant.map(e => e['email']);
+      const ph = resultant.map(e => e['phoneNumber']);
+
       if (em.includes(createContactDto['email']) && ph.includes(createContactDto['phoneNumber'])) {
-        userExist.slice(1).forEach(async (ele: any) => {
+        resultant.slice(1).forEach(async (ele: any) => {
 
           const up = await this.contactRepository.findOneAndUpdate({ _id: ele['_id'] }, { ...ele, linkPrecedence: "secondary" })
         })
         const res = {
           contact: {
-            primaryContatctId: userExist[0]['id'],
-            emails: userExist.map(e => e['email']).filter(f => f !== null),
-            phoneNumbers: userExist.map(e => e['phoneNumber']).filter(f => f !== null),
-            secondaryContactIds: userExist.slice(1).map(e => e['id'])
+            primaryContatctId: resultant[0]['id'],
+            emails: resultant.map(e => e['email']),
+            phoneNumbers: resultant.map(e => e['phoneNumber']),
+            secondaryContactIds: resultant.slice(1).map(e => e['id'])
           }
         }
         return res
       }
-      else {
-        // console.log("elsehhhh", userExist.map(e => e['email']));
-        
+      else {        
         const contactPayload = {
           ...createContactDto,
           id: this.generateUniqueId(),
@@ -96,22 +89,64 @@ export class ContactService {
           updatedAt: new Date,
           deletedAt: null
         }
-        const createdNewIdentity = await this.contactRepository.createContact(contactPayload);
+
+        const createdNewIdentity = [createContactDto['email'], createContactDto['phoneNumber']].includes(null) ? { id: null, phoneNumber: null, email: null } : await this.contactRepository.createContact(contactPayload);
         
         const res = {
           contact: {
-            primaryContatctId: userExist[0]['id'],
-            emails: [...new Set([...userExist.map(e => e['email']), createdNewIdentity['email']])].filter(f => f !== null),
-            phoneNumbers: [...new Set([...userExist.map(e => e['phoneNumber']), createdNewIdentity['phoneNumber']])].filter(f => f !== null),
-            secondaryContactIds: [...userExist.slice(1).map(e => e['id']), createdNewIdentity['id']]
+            primaryContatctId: resultant[0]['id'],
+            emails: [...new Set([...resultant.map(e => e['email']), createdNewIdentity['email']])].filter(f => f !== null),
+            phoneNumbers: [...new Set([...resultant.map(e => e['phoneNumber']), createdNewIdentity['phoneNumber']])].filter(f => f !== null),
+            secondaryContactIds: [...resultant.slice(1).map(e => e['id']), createdNewIdentity['id']].filter(f => f !== null)
           }
         }
         return res
       }
     }
     else {
-      return {contact:"Identity Already Exist"}
+      return { contact: "Identity Already Exist" }
     }
+  }
+
+
+  async usersWithOneCred(createContact: CreateContactDto) {
+    const aggsQuery = [
+      {
+        $match: {
+          $or: [
+            { email: createContact['email'] },
+            { phoneNumber: createContact['phoneNumber'] }
+          ]
+        }
+      },
+      {
+        $sort: {
+          createdAt: 1
+        }
+      }
+    ]
+
+    return await this.contactRepository.aggregate(aggsQuery)
+  }
+
+  async usersWithBothCred(createContact: CreateContactDto) {
+    const aggsQuery = [
+      {
+        $match: {
+          $and: [
+            { email: createContact['email'] },
+            { phoneNumber: createContact['phoneNumber'] }
+          ]
+        }
+      },
+      {
+        $sort: {
+          createdAt: 1
+        }
+      }
+    ]
+
+    return await this.contactRepository.aggregate(aggsQuery);
   }
 
   generateUniqueId() {

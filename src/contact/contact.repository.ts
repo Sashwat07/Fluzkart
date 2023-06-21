@@ -14,7 +14,7 @@ export class ContactRepository {
     }
 
     async find(contactFilterQuery: FilterQuery<Contact>): Promise<Contact[]> {
-        return this.contactModel.find(contactFilterQuery)
+        return this.contactModel.find(contactFilterQuery).sort({ createdAt: -1 })
     }
 
     async createContact(contact: Object): Promise<Contact>{
